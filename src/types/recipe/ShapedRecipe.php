@@ -17,6 +17,7 @@ namespace pocketmine\network\mcpe\protocol\types\recipe;
 use pmmp\encoding\ByteBufferReader;
 use pmmp\encoding\ByteBufferWriter;
 use pmmp\encoding\VarInt;
+use pocketmine\network\mcpe\protocol\CraftingDataPacket;
 use pocketmine\network\mcpe\protocol\PacketDecodeException;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
@@ -138,7 +139,10 @@ final class ShapedRecipe extends RecipeWithTypeId{
 			$symmetric = CommonTypes::getBool($in);
 
 			if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
-				$unlockingRequirement = CommonTypes::readOptional($in, fn(ByteBufferReader $in) => RecipeUnlockingRequirement::read($in, $protocolId));
+				//as of 1.26.40 the requirement is an optional, and it's only sent for the non-chemistry variant
+				$unlockingRequirement = $recipeType === CraftingDataPacket::ENTRY_SHAPED ?
+					CommonTypes::readOptional($in, fn(ByteBufferReader $in) => RecipeUnlockingRequirement::read($in, $protocolId)) :
+					null;
 			}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_21_0){
 				$unlockingRequirement = RecipeUnlockingRequirement::read($in, $protocolId);
 			}
@@ -174,7 +178,12 @@ final class ShapedRecipe extends RecipeWithTypeId{
 			CommonTypes::putBool($out, $this->symmetric);
 
 			if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
-				CommonTypes::writeOptional($out, $this->unlockingRequirement, fn(ByteBufferWriter $out, RecipeUnlockingRequirement $requirement) => $requirement->write($out, $protocolId));
+				//the chemistry variant doesn't carry the requirement at all as of 1.26.40
+				CommonTypes::writeOptional(
+					$out,
+					$this->getTypeId() === CraftingDataPacket::ENTRY_SHAPED ? $this->unlockingRequirement : null,
+					fn(ByteBufferWriter $out, RecipeUnlockingRequirement $requirement) => $requirement->write($out, $protocolId)
+				);
 			}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_21_0){
 				$this->unlockingRequirement->write($out, $protocolId);
 			}

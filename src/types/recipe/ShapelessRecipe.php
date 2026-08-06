@@ -17,6 +17,7 @@ namespace pocketmine\network\mcpe\protocol\types\recipe;
 use pmmp\encoding\ByteBufferReader;
 use pmmp\encoding\ByteBufferWriter;
 use pmmp\encoding\VarInt;
+use pocketmine\network\mcpe\protocol\CraftingDataPacket;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStack;
@@ -82,6 +83,14 @@ final class ShapelessRecipe extends RecipeWithTypeId{
 		return $this->recipeNetId;
 	}
 
+	/**
+	 * Of the three shapeless variants, only the plain and shulker box ones carry an unlocking requirement as of
+	 * 1.26.40.
+	 */
+	private static function hasUnlockingRequirement(int $recipeType) : bool{
+		return $recipeType === CraftingDataPacket::ENTRY_SHAPELESS || $recipeType === CraftingDataPacket::ENTRY_USER_DATA_SHAPELESS;
+	}
+
 	public static function decode(int $recipeType, ByteBufferReader $in, int $protocolId) : self{
 		$recipeId = CommonTypes::getString($in);
 		$input = [];
@@ -96,7 +105,10 @@ final class ShapelessRecipe extends RecipeWithTypeId{
 		$block = CommonTypes::getString($in);
 		$priority = VarInt::readSignedInt($in);
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
-			$unlockingRequirement = CommonTypes::readOptional($in, fn(ByteBufferReader $in) => RecipeUnlockingRequirement::read($in, $protocolId));
+			//as of 1.26.40 the requirement is an optional, and the chemistry variant doesn't carry it at all
+			$unlockingRequirement = self::hasUnlockingRequirement($recipeType) ?
+				CommonTypes::readOptional($in, fn(ByteBufferReader $in) => RecipeUnlockingRequirement::read($in, $protocolId)) :
+				null;
 		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_21_0){
 			$unlockingRequirement = RecipeUnlockingRequirement::read($in, $protocolId);
 		}
@@ -122,7 +134,11 @@ final class ShapelessRecipe extends RecipeWithTypeId{
 		CommonTypes::putString($out, $this->blockName);
 		VarInt::writeSignedInt($out, $this->priority);
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
-			CommonTypes::writeOptional($out, $this->unlockingRequirement, fn(ByteBufferWriter $out, RecipeUnlockingRequirement $requirement) => $requirement->write($out, $protocolId));
+			CommonTypes::writeOptional(
+				$out,
+				self::hasUnlockingRequirement($this->getTypeId()) ? $this->unlockingRequirement : null,
+				fn(ByteBufferWriter $out, RecipeUnlockingRequirement $requirement) => $requirement->write($out, $protocolId)
+			);
 		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_21_0){
 			$this->unlockingRequirement->write($out, $protocolId);
 		}
