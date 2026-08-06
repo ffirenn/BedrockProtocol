@@ -31,8 +31,12 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 	public float $volume;
 	public float $pitch;
 	public ?int $serverSoundHandle = null;
-	/** How many times to loop the sound before stopping; -1 means no looping at all. >= ProtocolInfo::PROTOCOL_1_26_40 */
-	public int $loopCount = -1;
+	/**
+	 * How many extra times to repeat the sound after the first playback; 0 (the default) plays it exactly once.
+	 * -1 loops indefinitely, until the sound is stopped through its server sound handle.
+	 * >= ProtocolInfo::PROTOCOL_1_26_40
+	 */
+	public int $loopCount = 0;
 
 	/**
 	 * @generate-create-func
