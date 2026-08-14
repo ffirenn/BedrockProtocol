@@ -131,7 +131,21 @@ class SetScorePacket extends DataPacket implements ClientboundPacket{
 
 			VarInt::writeSignedLong($out, $entry->scoreboardId);
 			if($variant === 0){
-				CommonTypes::writeOptional($out, $entry->objectiveName !== "" ? $entry->objectiveName : null, CommonTypes::putString(...));
+				/*
+				 * The objective name is deliberately ALWAYS written as absent here.
+				 *
+				 * 1.26.44 wrapped this field in a second optional (present-flag, then the 1.26.40
+				 * optional), but it did NOT bump the protocol number — 1.26.40 and 1.26.44 are both
+				 * 2168 on the wire, so we cannot tell the two apart at encode time and cannot pick
+				 * the matching shape per client. The two shapes coincide on exactly one value: when
+				 * the field is absent, both are a single 0x00 byte. Writing a present name produces
+				 * bytes that a 1.26.44 client (and a 1.26.44-aware proxy) misparses as the outer
+				 * flag, desynchronising the rest of the batch.
+				 *
+				 * Dropping it is safe: a removal is addressed by $scoreboardId, which is unique per
+				 * scoreboard entry, so the objective name carries no information the client needs.
+				 */
+				CommonTypes::writeOptional($out, null, CommonTypes::putString(...));
 			}else{
 				CommonTypes::putString($out, $entry->objectiveName);
 				LE::writeSignedInt($out, $entry->score);
